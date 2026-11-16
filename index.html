@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#8e63d8">
+<meta name="theme-color" content="#f4effc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1528" media="(prefers-color-scheme: dark)">
 <title>Планер недели</title>
 <style>
 :root{--bg:#f4effc;--card:#fff;--text:#2e2342;--muted:#8a7da3;--accent:#8e63d8;--soft:#ece3fb;--line:#e3d8f6;--today:#8e63d8;
@@ -36,19 +37,30 @@ h1{font-size:22px;margin:0;font-weight:700}
 .tx{flex:1;font-size:16px;line-height:1.4;word-break:break-word;padding-top:1px}
 .task.done .tx{text-decoration:line-through;color:var(--muted)}
 .del{border:0;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
-.add{display:flex;gap:8px;margin-top:8px}
-.add input{flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--text);outline:none}
+.add{display:grid;grid-template-columns:1fr 52px;gap:8px;margin:10px 0 0;padding:0}
+.add>*{margin:0;height:48px;min-width:0}
+.add .full{grid-column:1/-1}
+.add input{font-size:16px;padding:0 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);color:var(--text);outline:none}
 .add input:focus{border-color:var(--accent)}
-.add button{border:0;background:var(--accent);color:#fff;width:44px;border-radius:12px;font-size:22px;cursor:pointer}
+.add button{border:0;background:var(--accent);color:#fff;width:100%;border-radius:14px;font-size:24px;cursor:pointer}
 .empty{color:var(--muted);font-size:14px;padding:2px 0 4px}
 .sync{text-align:center;color:var(--muted);font-size:12px;margin-top:12px}
-:root{--bar:#8e63d8}
+:root{--bar:#f4effc}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bar:#1c1528}}
 :root[data-theme="dark"]{--bar:#1c1528}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bar);z-index:10}
-.tools{display:flex;gap:8px;margin-top:18px}
+.tools{display:flex;gap:8px;margin-top:10px}
 .tools button{flex:1;border:0;background:var(--soft);color:var(--accent);font-size:15px;font-weight:600;padding:12px 8px;border-radius:14px;cursor:pointer}
 #boxwrap{display:none;margin-top:10px}
+.wide{width:100%;margin-top:18px;border:0;background:var(--soft);color:var(--accent);font-size:15px;font-weight:600;padding:12px;border-radius:14px;cursor:pointer}
+#subpanel{display:none;background:var(--card);border-radius:16px;padding:12px;margin-top:10px}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:16px}
+.srow:first-child{border-top:0}
+.srow.off{color:var(--muted)}
+.srow button{border:0;background:var(--soft);color:var(--accent);border-radius:10px;padding:6px 12px;font-size:14px;cursor:pointer}
+.shead{font-size:13px;color:var(--muted);margin:10px 0 2px}
+.tag{flex:none;font-size:12px;background:rgba(128,128,128,.18);color:var(--muted);padding:3px 9px;border-radius:20px;margin-top:2px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add select{-webkit-appearance:none;appearance:none;font-size:16px;padding:0 40px 0 14px;border-radius:14px;border:1.5px solid var(--line);background-color:var(--bg);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%238e63d8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;color:var(--text)}
 #box{width:100%;height:110px;font-size:16px;padding:10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text)}
 #apply{margin-top:8px;width:100%;border:0;background:var(--accent);color:#fff;font-size:16px;padding:12px;border-radius:12px;cursor:pointer}
 </style>
@@ -65,6 +77,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   </header>
   <p class="range" id="range"></p>
   <div id="days"></div>
+  <button id="subbtn" class="wide">Предметы</button>
+  <div id="subpanel"><div id="sublist"></div><div class="add"><input id="subin" type="text" placeholder="Новый предмет…"><button id="subadd" aria-label="Добавить предмет">+</button></div></div>
   <div class="tools"><button id="copy">Скопировать данные</button><button id="paste">Вставить данные</button></div>
   <div id="boxwrap"><textarea id="box" placeholder="Вставь сюда скопированные данные"></textarea><button id="apply">Добавить задачи</button></div>
   <div class="sync" id="sync"></div>
@@ -76,6 +90,7 @@ var MON=["января","февраля","марта","апреля","мая","�
 var KEY="planner-v1";
 var state={tasks:{},updated:0};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.tasks)state=p;}}catch(e){}
+if(!state.subjects)state.subjects=[];
 var monday=startOfWeek(new Date());
 var dbDoc=null,saveTimer=null;
 
@@ -96,7 +111,7 @@ function render(){
   var days=document.getElementById("days");days.innerHTML="";
   var end=new Date(monday);end.setDate(end.getDate()+6);
   var r=monday.getDate()+(monday.getMonth()!==end.getMonth()?" "+MON[monday.getMonth()]:"")+"–"+end.getDate()+" "+MON[end.getMonth()]+" "+end.getFullYear();
-  document.getElementById("range").textContent=r;
+  document.getElementById("range").textContent=r;renderSubj();
   var todayIso=iso(new Date());
   for(var i=0;i<7;i++){
     (function(i){
@@ -118,15 +133,19 @@ function render(){
         var tx=document.createElement("div");tx.className="tx";tx.textContent=t.t;
         var x=document.createElement("button");x.className="del";x.textContent="×";x.setAttribute("aria-label","Удалить");
         x.onclick=function(){state.tasks[k]=list.filter(function(q){return q.id!==t.id});persist();render()};
-        row.appendChild(cb);row.appendChild(tx);row.appendChild(x);card.appendChild(row);
+        row.appendChild(cb);row.appendChild(tx);
+        var sn=subjName(t.s);if(sn){var tg=document.createElement("span");tg.className="tag";tg.textContent=sn;row.appendChild(tg)}
+        row.appendChild(x);card.appendChild(row);
       });
       var form=document.createElement("div");form.className="add";
       var inp=document.createElement("input");inp.type="text";inp.placeholder="Новая задача…";inp.enterKeyHint="done";
+      var sel=document.createElement("select");var o0=document.createElement("option");o0.value="";o0.textContent="Без предмета";sel.appendChild(o0);
+      state.subjects.forEach(function(s){if(s.on){var o=document.createElement("option");o.value=s.id;o.textContent=s.name;sel.appendChild(o)}});
       var btn=document.createElement("button");btn.textContent="+";btn.setAttribute("aria-label","Добавить");
-      function add(){var v=inp.value.trim();if(!v)return;(state.tasks[k]=state.tasks[k]||[]).push({id:uid(),t:v,d:false});persist();render();
+      function add(){var v=inp.value.trim();if(!v)return;(state.tasks[k]=state.tasks[k]||[]).push({id:uid(),t:v,d:false,s:sel.value});persist();render();
         var cards=document.querySelectorAll(".add input");if(cards[i])cards[i].focus()}
       btn.onclick=add;inp.onkeydown=function(ev){if(ev.key==="Enter")add()};
-      form.appendChild(inp);form.appendChild(btn);card.appendChild(form);
+      if(sel.options.length>1){inp.className="full";form.appendChild(inp);form.appendChild(sel)}else form.appendChild(inp);form.appendChild(btn);card.appendChild(form);
       days.appendChild(card);
     })(i);
   }
@@ -139,6 +158,7 @@ function mergeText(txt){
   try{
     var rs=JSON.parse(txt);if(!rs||!rs.tasks)throw 0;
     var added=0;
+    (rs.subjects||[]).forEach(function(s){if(s&&s.id&&!state.subjects.some(function(c){return c.id===s.id}))state.subjects.push(s)});
     Object.keys(rs.tasks).forEach(function(k){
       var cur=state.tasks[k]=state.tasks[k]||[];
       (rs.tasks[k]||[]).forEach(function(t){if(t&&t.id&&!cur.some(function(c){return c.id===t.id})){cur.push(t);added++}});
@@ -158,6 +178,19 @@ document.getElementById("paste").onclick=function(){
   if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(function(t){if(t&&t.indexOf("tasks")>-1)mergeText(t);else manual()}).catch(manual)}else manual();
 };
 document.getElementById("apply").onclick=function(){mergeText(document.getElementById("box").value)};
+function subjName(id){if(!id)return null;for(var i=0;i<state.subjects.length;i++){var s=state.subjects[i];if(s.id===id)return s.name}return null}
+function renderSubj(){
+  var box=document.getElementById("sublist");box.innerHTML="";
+  var act=state.subjects.filter(function(s){return s.on}),arc=state.subjects.filter(function(s){return !s.on});
+  function row(s){var r=document.createElement("div");r.className="srow"+(s.on?"":" off");var n=document.createElement("span");n.textContent=s.name;var b=document.createElement("button");b.textContent=s.on?"Убрать":"Вернуть";b.onclick=function(){s.on=!s.on;persist();render()};r.appendChild(n);r.appendChild(b);return r}
+  if(!act.length){var e=document.createElement("div");e.className="empty";e.textContent="Предметов пока нет";box.appendChild(e)}
+  act.forEach(function(s){box.appendChild(row(s))});
+  if(arc.length){var h=document.createElement("div");h.className="shead";h.textContent="Скрытые (прошлые)";box.appendChild(h);arc.forEach(function(s){box.appendChild(row(s))})}
+}
+document.getElementById("subbtn").onclick=function(){var p=document.getElementById("subpanel");p.style.display=p.style.display==="block"?"none":"block"};
+function addSubj(){var i=document.getElementById("subin");var v=i.value.trim();if(!v)return;state.subjects.push({id:uid(),name:v,on:true});i.value="";persist();render()}
+document.getElementById("subadd").onclick=addSubj;
+document.getElementById("subin").onkeydown=function(ev){if(ev.key==="Enter")addSubj()};
 render();
 setSync("Сохраняется на этом устройстве");
 
@@ -175,7 +208,7 @@ function withTimeout(p,ms){return Promise.race([p,new Promise(function(r){setTim
     if(snap.exists){
       var rd=snap.data()||{};
       if(rd.json&&(rd.updated||0)>(state.updated||0)){
-        var rs=JSON.parse(rd.json);if(rs&&rs.tasks){state=rs;try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}render()}
+        var rs=JSON.parse(rd.json);if(rs&&rs.tasks){state=rs;if(!state.subjects)state.subjects=[];try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}render()}
       }
     }
     dbDoc=doc;
