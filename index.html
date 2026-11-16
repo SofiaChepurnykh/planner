@@ -60,6 +60,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .srow button{border:0;background:var(--soft);color:var(--accent);border-radius:10px;padding:6px 12px;font-size:14px;cursor:pointer}
 .shead{font-size:13px;color:var(--muted);margin:10px 0 2px}
 .sbtns{display:flex;gap:6px;flex:none}
+.task .del{font-size:20px;padding:0 6px;color:var(--accent)}
+.tmenu{display:flex;gap:8px;padding:2px 0 8px 34px}
+.tmenu button{flex:1;border:0;background:var(--soft);color:var(--accent);font-size:15px;font-weight:600;height:40px;border-radius:12px;cursor:pointer}
+.tmenu .dng2{background:rgba(220,70,70,.16);color:#d64545}
+.edit{flex:1;min-width:0;font-size:16px;height:40px;padding:0 12px;border-radius:12px;border:1.5px solid var(--accent);background:var(--bg);color:var(--text);outline:none}
 .srow .sn{flex:1;min-width:0;word-break:break-word}
 .srow button.sq{padding:6px 11px;font-weight:700}
 .srow button.dng{background:rgba(220,70,70,.16);color:#d64545}
@@ -96,7 +101,7 @@ var state={tasks:{},updated:0};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.tasks)state=p;}}catch(e){}
 if(!state.subjects)state.subjects=[];
 var monday=startOfWeek(new Date());
-var dbDoc=null,saveTimer=null;
+var dbDoc=null,saveTimer=null;var openId=null,editId=null,delId=null,confSub=null;
 
 function startOfWeek(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());var w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x}
 function iso(d){var m=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd}
@@ -135,11 +140,22 @@ function render(){
         var cb=document.createElement("input");cb.type="checkbox";cb.className="chk";cb.checked=!!t.d;
         cb.onchange=function(){t.d=cb.checked;persist();render()};
         var tx=document.createElement("div");tx.className="tx";tx.textContent=t.t;
-        var x=document.createElement("button");x.className="del";x.textContent="×";x.setAttribute("aria-label","Удалить");
-        x.onclick=function(){state.tasks[k]=list.filter(function(q){return q.id!==t.id});persist();render()};
-        row.appendChild(cb);row.appendChild(tx);
+        var x=document.createElement("button");x.className="del";x.textContent="♥";x.setAttribute("aria-label","Изменить задачу");
+        x.onclick=function(){openId=(openId===t.id?null:t.id);editId=null;delId=null;render()};
+        row.appendChild(cb);
+        var saveE=null;
+        if(editId===t.id){var ei=document.createElement("input");ei.type="text";ei.className="edit";ei.value=t.t;ei.enterKeyHint="done";
+          saveE=function(){var v=ei.value.trim();if(v)t.t=v;editId=null;openId=null;persist();render()};
+          ei.onkeydown=function(ev){if(ev.key==="Enter")saveE()};row.appendChild(ei);setTimeout(function(){ei.focus()},0)}
+        else row.appendChild(tx);
         var sn=subjName(t.s)||t.sn;if(sn){var tg=document.createElement("span");tg.className="tag";tg.textContent=sn;row.appendChild(tg)}
         row.appendChild(x);card.appendChild(row);
+        if(openId===t.id){var mn=document.createElement("div");mn.className="tmenu";
+          var mb=function(txt,fn,cls){var b=document.createElement("button");b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;mn.appendChild(b)};
+          if(delId===t.id){mb("Да, удалить",function(){state.tasks[k]=list.filter(function(q){return q.id!==t.id});openId=null;delId=null;persist();render()},"dng2");mb("Отмена",function(){delId=null;render()})}
+          else if(editId===t.id){mb("Сохранить",function(){saveE()});mb("Отмена",function(){editId=null;openId=null;render()})}
+          else{mb("Редактировать",function(){editId=t.id;render()});mb("Удалить",function(){delId=t.id;render()},"dng2")}
+          card.appendChild(mn)}
       });
       var form=document.createElement("div");form.className="add";
       var inp=document.createElement("input");inp.type="text";inp.placeholder="Новая задача…";inp.enterKeyHint="done";
@@ -184,7 +200,7 @@ document.getElementById("paste").onclick=function(){
 document.getElementById("apply").onclick=function(){mergeText(document.getElementById("box").value)};
 function subjName(id){if(!id)return null;for(var i=0;i<state.subjects.length;i++){var s=state.subjects[i];if(s.id===id)return s.name}return null}
 function mv(s,dir){var a=state.subjects;var i=a.indexOf(s);var j=i+dir;while(j>=0&&j<a.length&&!a[j].on)j+=dir;if(j<0||j>=a.length)return;var t=a[i];a[i]=a[j];a[j]=t;persist();render()}
-function delSubj(s){if(!confirm("Удалить предмет «"+s.name+"»? Плашки на старых задачах останутся."))return;
+function delSubj(s){
   Object.keys(state.tasks).forEach(function(k){state.tasks[k].forEach(function(t){if(t.s===s.id&&!t.sn)t.sn=s.name})});
   state.subjects=state.subjects.filter(function(q){return q.id!==s.id});persist();render()}
 function renderSubj(){
@@ -194,7 +210,7 @@ function renderSubj(){
     var g=document.createElement("div");g.className="sbtns";
     function mk(txt,fn,cls){var b=document.createElement("button");b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;g.appendChild(b)}
     if(s.on){mk("↑",function(){mv(s,-1)},"sq");mk("↓",function(){mv(s,1)},"sq");mk("Убрать",function(){s.on=false;persist();render()})}
-    else{mk("Вернуть",function(){s.on=true;persist();render()});mk("Удалить",function(){delSubj(s)},"dng")}
+    else{mk("Вернуть",function(){s.on=true;persist();render()});mk(confSub===s.id?"Точно удалить?":"Удалить",function(){if(confSub===s.id){confSub=null;delSubj(s)}else{confSub=s.id;render()}},"dng")}
     r.appendChild(g);return r}
   if(!act.length){var e=document.createElement("div");e.className="empty";e.textContent="Предметов пока нет";box.appendChild(e)}
   act.forEach(function(s){box.appendChild(row(s))});
