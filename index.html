@@ -59,6 +59,10 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .srow.off{color:var(--muted)}
 .srow button{border:0;background:var(--soft);color:var(--accent);border-radius:10px;padding:6px 12px;font-size:14px;cursor:pointer}
 .shead{font-size:13px;color:var(--muted);margin:10px 0 2px}
+.sbtns{display:flex;gap:6px;flex:none}
+.srow .sn{flex:1;min-width:0;word-break:break-word}
+.srow button.sq{padding:6px 11px;font-weight:700}
+.srow button.dng{background:rgba(220,70,70,.16);color:#d64545}
 .tag{flex:none;font-size:12px;background:rgba(128,128,128,.18);color:var(--muted);padding:3px 9px;border-radius:20px;margin-top:2px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .add select{-webkit-appearance:none;appearance:none;font-size:16px;padding:0 40px 0 14px;border-radius:14px;border:1.5px solid var(--line);background-color:var(--bg);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%238e63d8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;color:var(--text)}
 #box{width:100%;height:110px;font-size:16px;padding:10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text)}
@@ -134,7 +138,7 @@ function render(){
         var x=document.createElement("button");x.className="del";x.textContent="×";x.setAttribute("aria-label","Удалить");
         x.onclick=function(){state.tasks[k]=list.filter(function(q){return q.id!==t.id});persist();render()};
         row.appendChild(cb);row.appendChild(tx);
-        var sn=subjName(t.s);if(sn){var tg=document.createElement("span");tg.className="tag";tg.textContent=sn;row.appendChild(tg)}
+        var sn=subjName(t.s)||t.sn;if(sn){var tg=document.createElement("span");tg.className="tag";tg.textContent=sn;row.appendChild(tg)}
         row.appendChild(x);card.appendChild(row);
       });
       var form=document.createElement("div");form.className="add";
@@ -179,10 +183,19 @@ document.getElementById("paste").onclick=function(){
 };
 document.getElementById("apply").onclick=function(){mergeText(document.getElementById("box").value)};
 function subjName(id){if(!id)return null;for(var i=0;i<state.subjects.length;i++){var s=state.subjects[i];if(s.id===id)return s.name}return null}
+function mv(s,dir){var a=state.subjects;var i=a.indexOf(s);var j=i+dir;while(j>=0&&j<a.length&&!a[j].on)j+=dir;if(j<0||j>=a.length)return;var t=a[i];a[i]=a[j];a[j]=t;persist();render()}
+function delSubj(s){if(!confirm("Удалить предмет «"+s.name+"»? Плашки на старых задачах останутся."))return;
+  Object.keys(state.tasks).forEach(function(k){state.tasks[k].forEach(function(t){if(t.s===s.id&&!t.sn)t.sn=s.name})});
+  state.subjects=state.subjects.filter(function(q){return q.id!==s.id});persist();render()}
 function renderSubj(){
   var box=document.getElementById("sublist");box.innerHTML="";
   var act=state.subjects.filter(function(s){return s.on}),arc=state.subjects.filter(function(s){return !s.on});
-  function row(s){var r=document.createElement("div");r.className="srow"+(s.on?"":" off");var n=document.createElement("span");n.textContent=s.name;var b=document.createElement("button");b.textContent=s.on?"Убрать":"Вернуть";b.onclick=function(){s.on=!s.on;persist();render()};r.appendChild(n);r.appendChild(b);return r}
+  function row(s){var r=document.createElement("div");r.className="srow"+(s.on?"":" off");var n=document.createElement("span");n.className="sn";n.textContent=s.name;r.appendChild(n);
+    var g=document.createElement("div");g.className="sbtns";
+    function mk(txt,fn,cls){var b=document.createElement("button");b.textContent=txt;if(cls)b.className=cls;b.onclick=fn;g.appendChild(b)}
+    if(s.on){mk("↑",function(){mv(s,-1)},"sq");mk("↓",function(){mv(s,1)},"sq");mk("Убрать",function(){s.on=false;persist();render()})}
+    else{mk("Вернуть",function(){s.on=true;persist();render()});mk("Удалить",function(){delSubj(s)},"dng")}
+    r.appendChild(g);return r}
   if(!act.length){var e=document.createElement("div");e.className="empty";e.textContent="Предметов пока нет";box.appendChild(e)}
   act.forEach(function(s){box.appendChild(row(s))});
   if(arc.length){var h=document.createElement("div");h.className="shead";h.textContent="Скрытые (прошлые)";box.appendChild(h);arc.forEach(function(s){box.appendChild(row(s))})}
