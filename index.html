@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#8e63d8">
 <title>Планер недели</title>
 <style>
 :root{--bg:#f4effc;--card:#fff;--text:#2e2342;--muted:#8a7da3;--accent:#8e63d8;--soft:#ece3fb;--line:#e3d8f6;--today:#8e63d8;
@@ -39,7 +41,16 @@ h1{font-size:22px;margin:0;font-weight:700}
 .add input:focus{border-color:var(--accent)}
 .add button{border:0;background:var(--accent);color:#fff;width:44px;border-radius:12px;font-size:22px;cursor:pointer}
 .empty{color:var(--muted);font-size:14px;padding:2px 0 4px}
-.sync{text-align:center;color:var(--muted);font-size:12px;margin-top:16px}
+.sync{text-align:center;color:var(--muted);font-size:12px;margin-top:12px}
+:root{--bar:#8e63d8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bar:#1c1528}}
+:root[data-theme="dark"]{--bar:#1c1528}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bar);z-index:10}
+.tools{display:flex;gap:8px;margin-top:18px}
+.tools button{flex:1;border:0;background:var(--soft);color:var(--accent);font-size:15px;font-weight:600;padding:12px 8px;border-radius:14px;cursor:pointer}
+#boxwrap{display:none;margin-top:10px}
+#box{width:100%;height:110px;font-size:16px;padding:10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--text)}
+#apply{margin-top:8px;width:100%;border:0;background:var(--accent);color:#fff;font-size:16px;padding:12px;border-radius:12px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -54,6 +65,8 @@ h1{font-size:22px;margin:0;font-weight:700}
   </header>
   <p class="range" id="range"></p>
   <div id="days"></div>
+  <div class="tools"><button id="copy">Скопировать данные</button><button id="paste">Вставить данные</button></div>
+  <div id="boxwrap"><textarea id="box" placeholder="Вставь сюда скопированные данные"></textarea><button id="apply">Добавить задачи</button></div>
   <div class="sync" id="sync"></div>
 </div>
 <script>
@@ -121,6 +134,30 @@ function render(){
 document.getElementById("prev").onclick=function(){monday.setDate(monday.getDate()-7);render()};
 document.getElementById("next").onclick=function(){monday.setDate(monday.getDate()+7);render()};
 document.getElementById("now").onclick=function(){monday=startOfWeek(new Date());render()};
+function flash(t){setSync(t);setTimeout(function(){setSync(dbDoc?"Синхронизация включена ✓":"Сохраняется на этом устройстве")},3500)}
+function mergeText(txt){
+  try{
+    var rs=JSON.parse(txt);if(!rs||!rs.tasks)throw 0;
+    var added=0;
+    Object.keys(rs.tasks).forEach(function(k){
+      var cur=state.tasks[k]=state.tasks[k]||[];
+      (rs.tasks[k]||[]).forEach(function(t){if(t&&t.id&&!cur.some(function(c){return c.id===t.id})){cur.push(t);added++}});
+    });
+    persist();render();
+    document.getElementById("boxwrap").style.display="none";document.getElementById("box").value="";
+    flash("Добавлено задач: "+added+" ✓");
+  }catch(e){flash("Не получилось: это не данные планера")}
+}
+document.getElementById("copy").onclick=function(){
+  var txt=JSON.stringify(state);
+  function fallback(){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");flash("Данные скопированы ✓")}catch(e){flash("Не удалось скопировать")}document.body.removeChild(ta)}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){flash("Данные скопированы ✓")}).catch(fallback)}else fallback();
+};
+document.getElementById("paste").onclick=function(){
+  function manual(){document.getElementById("boxwrap").style.display="block";document.getElementById("box").focus()}
+  if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(function(t){if(t&&t.indexOf("tasks")>-1)mergeText(t);else manual()}).catch(manual)}else manual();
+};
+document.getElementById("apply").onclick=function(){mergeText(document.getElementById("box").value)};
 render();
 setSync("Сохраняется на этом устройстве");
 
